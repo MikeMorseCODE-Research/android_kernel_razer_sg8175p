@@ -1,4 +1,3 @@
-# This is a name: pmbootstrap build - Razer Edge WiFi
 on:
   push:
     branches: [ main ]
@@ -15,17 +14,11 @@ on:
         required: false
         default: 'edge'
 
-env:
-  # Must match the deviceinfo folder name exactly, e.g.
-  # device/testing/device-razer-nicole
+env
   DEVICE: razer-nicole
-  # Kernel package name — not always "linux-$DEVICE", set explicitly
   KERNEL_PKG: linux-razer-nicole
   UI: none
-  PMB_WORK: /home/runner/.local/var/pmbootstrap
-  # Old Qualcomm downstream kernel trees hit -Werror=format= failures
-  # on newer GCC. The APKBUILD sets KCFLAGS=-Wno-error=format, but we
-  # also pin it here as a second line of defense / visibility in logs.
+  PMB_WORK: /home/runner/.local/var/pmbootstrap.
   KCFLAGS: -Wno-error=format
 
 jobs:
