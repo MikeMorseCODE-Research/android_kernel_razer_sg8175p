@@ -14,7 +14,7 @@ on:
         required: false
         default: 'edge'
 
-env
+env:
   DEVICE: razer-nicole
   KERNEL_PKG: linux-razer-nicole
   UI: none
