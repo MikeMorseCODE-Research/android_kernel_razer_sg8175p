@@ -1,0 +1,152 @@
+# This is a name: pmbootstrap build - Razer Edge WiFi
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'device/**razer-edge**/**'
+      - '.github/workflows/pmbootstrap-razer-edge.yml'
+  pull_request:
+    paths:
+      - 'device/**razer-edge**/**'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'pmaports channel to build against'
+        required: false
+        default: 'edge'
+
+env:
+  # Must match the deviceinfo folder name exactly, e.g.
+  # device/testing/device-razer-nicole
+  DEVICE: razer-nicole
+  # Kernel package name — not always "linux-$DEVICE", set explicitly
+  KERNEL_PKG: linux-razer-nicole
+  UI: none
+  PMB_WORK: /home/runner/.local/var/pmbootstrap
+  # Old Qualcomm downstream kernel trees hit -Werror=format= failures
+  # on newer GCC. The APKBUILD sets KCFLAGS=-Wno-error=format, but we
+  # also pin it here as a second line of defense / visibility in logs.
+  KCFLAGS: -Wno-error=format
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out pmaports (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: pmaports
+          fetch-depth: 0
+
+      - name: Check out pmbootstrap
+        uses: actions/checkout@v4
+        with:
+          repository: postmarketOS/pmbootstrap
+          path: pmbootstrap
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git python3 python3-pip python3-venv \
+            binutils bzip2 ccache device-tree-compiler fakeroot findutils \
+            gcc g++ pigz qemu-user-static qemu-utils \
+            ruby rsync sudo unzip util-linux zip zstd
+
+      - name: Install pmbootstrap
+        run: |
+          python3 -m pip install --user ./pmbootstrap
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Enable binfmt for cross-arch chroots
+        run: |
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes || true
+
+      - name: Non-interactive pmbootstrap init
+        run: |
+          pmbootstrap \
+            -p "$GITHUB_WORKSPACE/pmaports" \
+            -w "$PMB_WORK" \
+            init \
+            --vendor testing \
+            --device "$DEVICE" \
+            --ui "$UI" \
+            --no-fde \
+            --non-interactive
+
+      - name: Show resolved config (debug)
+        run: pmbootstrap -w "$PMB_WORK" config
+
+      - name: Run pmbootstrap's own test suite against this device aport
+        run: |
+          pmbootstrap -w "$PMB_WORK" -y ci --fast
+
+      - name: Build kernel + device packages
+        run: |
+          pmbootstrap -w "$PMB_WORK" -y build \
+            "device-$DEVICE" \
+            "$KERNEL_PKG" \
+            --force
+
+      - name: Build boot.img / rootfs image
+        run: |
+          pmbootstrap -w "$PMB_WORK" -y install --no-fde --split
+
+      - name: Locate build artifacts
+        id: artifacts
+        run: |
+          IMG_DIR="$PMB_WORK/chroot_native/home/pmos/rootfs"
+          echo "img_dir=$IMG_DIR" >> "$GITHUB_OUTPUT"
+          ls -la "$IMG_DIR" || true
+
+      - name: Upload boot/rootfs images
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmos-${{ env.DEVICE }}-images
+          path: |
+            ${{ steps.artifacts.outputs.img_dir }}/*.img
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload full pmbootstrap log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmbootstrap-log
+          path: ${{ env.PMB_WORK }}/log.txt
+          if-no-files-found: ignore
+ workflow that is manually triggered
+
+name: Manual workflow
+
+# Controls when the action will run. Workflow runs when manually triggered using the UI
+# or API.
+on:
+  workflow_dispatch:
+    # Inputs the workflow accepts.
+    inputs:
+      name:
+        # Friendly description to be shown in the UI instead of 'name'
+        description: 'Person to greet'
+        # Default value if no value is explicitly provided
+        default: 'World'
+        # Input has to be provided for the workflow to run
+        required: true
+        # The data type of the input
+        type: string
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "greet"
+  greet:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    # Runs a single command using the runners shell
+    - name: Send greeting
+      run: echo "Hello ${{ inputs.name }}"
