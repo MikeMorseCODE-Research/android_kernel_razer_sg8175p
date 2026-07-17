@@ -1,5 +1,4 @@
 # This is a name: pmbootstrap build - Razer Edge WiFi
-
 on:
   push:
     branches: [ main ]
